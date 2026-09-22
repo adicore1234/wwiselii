@@ -33,7 +33,10 @@ import {
   Sparkles,
   Flame,
   RotateCcw,
-  Undo2
+  Undo2,
+  Handshake,
+  Crown,
+  UserCheck
 } from 'lucide-react';
 import { 
   addCallLog, 
@@ -71,6 +74,7 @@ type Lead = {
   interest?: string | null;
   worthInvesting?: string | null;
   callAgain?: string | null;
+  dealStatus?: string | null;
   temperature?: string | null;
   followUpDate: Date | null;
   scheduledTime?: string | null;
@@ -122,7 +126,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   
   // Navigation Module
-  const [activeModule, setActiveModule] = useState<'leads' | 'priority' | 'calendar' | 'analytics' | 'settings'>('leads');
+  const [activeModule, setActiveModule] = useState<'leads' | 'priority' | 'closedDeals' | 'calendar' | 'analytics' | 'settings'>('leads');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Active Lead for Detailed Note Modal
@@ -159,12 +163,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
   const [newContact, setNewContact] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  // Quick Inline Add State
-  const [quickAddName, setQuickAddName] = useState('');
-  const [quickAddPhone, setQuickAddPhone] = useState('');
-  const [quickAddArea, setQuickAddArea] = useState('');
-  const [quickAddContact, setQuickAddContact] = useState('');
-  const [isQuickAdding, setIsQuickAdding] = useState(false);
+
 
   // Load custom settings
   useEffect(() => {
@@ -269,6 +268,11 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
     return leads.filter(l => l.worthInvesting === 'שווה להשקיע' || l.temperature === 'urgent');
   }, [leads]);
 
+  // Closed Deals / Already Clients ("כבר דיברנו / כבר לקוח")
+  const closedDealLeads = useMemo(() => {
+    return leads.filter(l => l.dealStatus === 'כבר דיברנו' || l.dealStatus === 'כבר לקוח');
+  }, [leads]);
+
   // Filtered Priority Leads within Priority Module
   const filteredPriorityLeads = useMemo(() => {
     return priorityLeads.filter(l => {
@@ -352,7 +356,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
   // 1-Click Toggle for Individual Documentation Columns (Separated storage!)
   const handleToggleDocField = async (
     leadId: string, 
-    field: 'callAnswer' | 'interest' | 'worthInvesting' | 'callAgain', 
+    field: 'callAnswer' | 'interest' | 'worthInvesting' | 'callAgain' | 'dealStatus', 
     val: string
   ) => {
     const existing = leads.find(l => l.id === leadId);
@@ -481,35 +485,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
     }
   };
 
-  // Quick inline add lead
-  const handleQuickAddLead = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!quickAddName.trim() || !quickAddPhone.trim() || isQuickAdding) return;
 
-    setIsQuickAdding(true);
-    try {
-      const res = await createNewLead({
-        name: quickAddName.trim(),
-        phone: quickAddPhone.trim(),
-        area: quickAddArea.trim() || undefined,
-        contactPerson: quickAddContact.trim() || undefined
-      });
-
-      if (res.success && res.lead) {
-        const created: Lead = { ...res.lead, notes: [] };
-        setLeads(prev => [created, ...prev]);
-        setQuickAddName('');
-        setQuickAddPhone('');
-        setQuickAddArea('');
-        setQuickAddContact('');
-        flashRow(created.id);
-      }
-    } catch (err) {
-      console.error('Error creating lead quickly:', err);
-    } finally {
-      setIsQuickAdding(false);
-    }
-  };
 
   // Export to CSV with Separate Documentation Columns
   const handleExportCsv = () => {
@@ -525,6 +501,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
       'רמת עניין', 
       'שווה להשקיע', 
       'התקשרות', 
+      'סטטוס עסקה',
       'טמפרטורה', 
       'תוצאת שיחה אחרונה', 
       'תאריך חזרה', 
@@ -543,6 +520,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
       `"${l.interest || ''}"`,
       `"${l.worthInvesting || ''}"`,
       `"${l.callAgain || ''}"`,
+      `"${l.dealStatus || ''}"`,
       `"${l.temperature || ''}"`,
       `"${(l.lastCallOutcome || '').replace(/"/g, '""')}"`,
       `"${l.followUpDate ? new Date(l.followUpDate).toLocaleDateString('he-IL') : ''}"`,
@@ -606,7 +584,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
             className="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-md shadow-cyan-500/20 transition-all cursor-pointer ring-1 ring-cyan-400/30 hover:scale-[1.02]"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ הוסף חנות חדשה</span>
+            <span>+ הוספת לקוח חדש</span>
           </button>
         </div>
 
@@ -653,6 +631,29 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
               activeModule === 'priority' ? 'bg-white/25 text-white' : 'bg-purple-200 text-purple-900 border border-purple-300'
             }`}>
               {priorityLeads.length}
+            </span>
+          </button>
+
+          {/* Module: Closed Deals / Already Clients ("סגירות 🤝") */}
+          <button
+            onClick={() => setActiveModule('closedDeals')}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl font-bold text-sm transition-all cursor-pointer ${
+              activeModule === 'closedDeals' 
+                ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30' 
+                : 'text-emerald-900 hover:text-emerald-950 hover:bg-emerald-50/90 bg-emerald-50/50 border border-emerald-200/70'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Handshake className={`w-4 h-4 shrink-0 ${activeModule === 'closedDeals' ? 'text-amber-300' : 'text-emerald-600'}`} />
+              <div className="text-right">
+                <div className="leading-tight">סגירות 🤝</div>
+                <div className={`text-[10px] font-normal ${activeModule === 'closedDeals' ? 'text-emerald-200' : 'text-emerald-700'}`}>כבר דיברנו / לקוחות</div>
+              </div>
+            </div>
+            <span className={`text-xs px-2.5 py-0.5 rounded-full font-black ${
+              activeModule === 'closedDeals' ? 'bg-white/25 text-white' : 'bg-emerald-200 text-emerald-900 border border-emerald-300'
+            }`}>
+              {closedDealLeads.length}
             </span>
           </button>
 
@@ -779,9 +780,10 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-black rounded-xl"
+              className="px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 active:scale-95 text-white text-xs font-black rounded-xl flex items-center gap-1 shadow-xs cursor-pointer"
             >
-              + חנות
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span>+ לקוח</span>
             </button>
           </div>
         </header>
@@ -789,6 +791,13 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
         {/* Mobile Dropdown Drawer */}
         {mobileMenuOpen && (
           <div className="lg:hidden absolute top-14 left-0 right-0 bg-white/95 backdrop-blur-xl border-b border-slate-200 p-4 z-40 space-y-2 shadow-xl">
+            <button
+              onClick={() => { setShowAddModal(true); setMobileMenuOpen(false); }}
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white font-black text-sm shadow-md cursor-pointer active:scale-98 transition-all"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>+ הוספת לקוח חדש למאגר</span>
+            </button>
             <button
               onClick={() => { setActiveModule('leads'); setMobileMenuOpen(false); }}
               className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold text-sm"
@@ -806,6 +815,18 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
               </div>
               <span className="bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full text-xs font-black">
                 {priorityLeads.length}
+              </span>
+            </button>
+            <button
+              onClick={() => { setActiveModule('closedDeals'); setMobileMenuOpen(false); }}
+              className="w-full flex items-center justify-between p-3 rounded-xl bg-emerald-50 text-emerald-900 font-black text-sm border border-emerald-200"
+            >
+              <div className="flex items-center gap-3">
+                <Handshake className="w-4 h-4 text-emerald-600" />
+                <span>סגירות 🤝 (כבר דיברנו / לקוחות)</span>
+              </div>
+              <span className="bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full text-xs font-black">
+                {closedDealLeads.length}
               </span>
             </button>
             <button
@@ -852,10 +873,10 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
                   {/* PROMINENT ADD STORE BUTTON RIGHT AT THE TOP RIGHT */}
                   <button
                     onClick={() => setShowAddModal(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 active:scale-95 text-white text-xs font-black rounded-xl flex items-center gap-2 shadow-md shadow-cyan-500/25 transition-all cursor-pointer ring-2 ring-cyan-400/40 hover:scale-[1.02]"
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 active:scale-95 text-white text-xs sm:text-sm font-black rounded-xl flex items-center gap-2 shadow-md shadow-cyan-500/25 transition-all cursor-pointer ring-2 ring-cyan-400/40 hover:scale-[1.02]"
                   >
                     <Plus className="w-4 h-4 stroke-[3]" />
-                    <span>+ הוסף חנות חדשה</span>
+                    <span>+ הוספת לקוח חדש</span>
                   </button>
                 </div>
 
@@ -889,6 +910,15 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
 
               {/* Filters Row */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+                {/* Mobile-Only Prominent Add Customer Button */}
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="sm:hidden w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm shadow-cyan-500/25 active:scale-98 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>+ הוספת לקוח חדש</span>
+                </button>
+
                 {/* Search Input */}
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute right-3.5 top-2.5 text-slate-400 w-4 h-4 pointer-events-none" />
@@ -962,56 +992,6 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
                   )}
                 </div>
               </div>
-
-              {/* QUICK INLINE ADD STORE BAR */}
-              <form 
-                onSubmit={handleQuickAddLead}
-                className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap text-xs bg-gradient-to-l from-cyan-50/60 to-blue-50/40 p-2.5 rounded-2xl border border-cyan-100"
-              >
-                <div className="font-black text-cyan-900 flex items-center gap-1.5 shrink-0">
-                  <Plus className="w-4 h-4 text-cyan-600 stroke-[3]" />
-                  <span>הוספה מהירה לשורה:</span>
-                </div>
-                <input
-                  type="text"
-                  placeholder="שם חנות *"
-                  required
-                  value={quickAddName}
-                  onChange={(e) => setQuickAddName(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-full sm:w-44 shadow-2xs"
-                />
-                <input
-                  type="text"
-                  placeholder="טלפון *"
-                  required
-                  value={quickAddPhone}
-                  onChange={(e) => setQuickAddPhone(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-full sm:w-32 shadow-2xs"
-                  dir="ltr"
-                />
-                <input
-                  type="text"
-                  placeholder="אזור / עיר"
-                  value={quickAddArea}
-                  onChange={(e) => setQuickAddArea(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-full sm:w-28 shadow-2xs"
-                />
-                <input
-                  type="text"
-                  placeholder="איש קשר"
-                  value={quickAddContact}
-                  onChange={(e) => setQuickAddContact(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-full sm:w-28 shadow-2xs"
-                />
-                <button
-                  type="submit"
-                  disabled={!quickAddName.trim() || !quickAddPhone.trim() || isQuickAdding}
-                  className="px-4 py-1.5 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-black rounded-xl shadow-xs shadow-cyan-500/20 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1 active:scale-95 transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>{isQuickAdding ? 'מוסיף...' : 'הוסף חנות'}</span>
-                </button>
-              </form>
             </div>
 
             {/* STORES CONTENT: MOBILE CARDS & DESKTOP DATA TABLE */}
@@ -1219,6 +1199,35 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
                             </button>
                           </div>
                         </div>
+
+                        {/* 5. סגירה */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-600 w-20 shrink-0">סגירה:</span>
+                          <div className="grid grid-cols-2 gap-1.5 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDocField(lead.id, 'dealStatus', 'כבר דיברנו')}
+                              className={`py-1.5 px-2 rounded-xl text-xs font-black border transition-all text-center ${
+                                lead.dealStatus === 'כבר דיברנו'
+                                  ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                                  : 'bg-white text-teal-800 border-teal-200'
+                              }`}
+                            >
+                              🗣️ כבר דיברנו
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDocField(lead.id, 'dealStatus', 'כבר לקוח')}
+                              className={`py-1.5 px-2 rounded-xl text-xs font-black border transition-all text-center ${
+                                lead.dealStatus === 'כבר לקוח'
+                                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-300'
+                                  : 'bg-white text-emerald-800 border-emerald-200'
+                              }`}
+                            >
+                              👑 כבר לקוח
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Card Footer: Notes Button */}
@@ -1261,6 +1270,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
                         <th className="py-3.5 px-3 whitespace-nowrap text-center">רמת עניין</th>
                         <th className="py-3.5 px-3 whitespace-nowrap text-center">שווה להשקיע</th>
                         <th className="py-3.5 px-3 whitespace-nowrap text-center">התקשרות</th>
+                        <th className="py-3.5 px-3 whitespace-nowrap text-center">סגירה</th>
                         <th className="py-3.5 px-3">איש קשר</th>
                         <th className="py-3.5 px-3">אזור ועיר</th>
                         <th className="py-3.5 px-3">סטטוס</th>
@@ -1469,7 +1479,35 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
                               </div>
                             </td>
 
-                            {/* Contact Person */}
+                            {/* 5. SEPARATE COLUMN: סטטוס עסקה (Deal Status) */}
+                            <td className="py-2.5 px-3 whitespace-nowrap text-center">
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleDocField(lead.id, 'dealStatus', 'כבר דיברנו')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                    lead.dealStatus === 'כבר דיברנו'
+                                      ? 'bg-teal-600 text-white shadow-xs scale-105'
+                                      : 'text-teal-800 hover:bg-teal-50 bg-white border border-teal-200'
+                                  }`}
+                                  title="כבר דיברנו עם החנות"
+                                >
+                                  🗣️ דיברנו
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleDocField(lead.id, 'dealStatus', 'כבר לקוח')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                    lead.dealStatus === 'כבר לקוח'
+                                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs scale-105 ring-2 ring-emerald-300'
+                                      : 'text-emerald-800 hover:bg-emerald-50 bg-white border border-emerald-200'
+                                  }`}
+                                  title="כבר לקוח שלנו"
+                                >
+                                  👑 לקוח
+                                </button>
+                              </div>
+                            </td>
                             <td className="py-3 px-3">
                               {lead.contactPerson ? (
                                 <span className="font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md text-[11px]">
@@ -1519,7 +1557,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
 
                       {filteredLeads.length === 0 && (
                         <tr>
-                          <td colSpan={11} className="py-12 text-center text-slate-400">
+                          <td colSpan={12} className="py-12 text-center text-slate-400">
                             <Store className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                             <p className="font-bold text-slate-600 text-sm">לא נמצאו חנויות התואמות לחיפוש</p>
                             <p className="text-xs mt-1">נסה לשנות את הסינון או מילות החיפוש</p>
@@ -1929,6 +1967,265 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
         )}
 
         {/* ========================================================= */}
+        {/* MODULE: CLOSED DEALS / ALREADY CLIENTS ("סגירות 🤝")      */}
+        {/* ========================================================= */}
+        {activeModule === 'closedDeals' && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 pb-28">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 flex-wrap gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20">
+                    <Handshake className="w-6 h-6" />
+                  </span>
+                  <h2 className="text-2xl font-black text-slate-900">
+                    סגירות 🤝
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-500 mt-1.5">
+                  ריכוז חנויות שכבר דיברנו איתן או שכבר לקוחות שלנו – לניהול מעקב ושימור קשר.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black px-3.5 py-1.5 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-200 shadow-2xs">
+                  {closedDealLeads.length} חנויות ברשימה
+                </span>
+                <button
+                  onClick={() => setActiveModule('leads')}
+                  className="px-4 py-2 rounded-xl text-xs font-black text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer hover:scale-102 active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+                  <span>חזרה לטבלת כל החנויות ↩️</span>
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Cards Row */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3.5">
+              <div className="p-4 rounded-2xl bg-white border border-emerald-200 shadow-xs relative overflow-hidden">
+                <div className="text-xs font-bold text-slate-500 mb-1">סה"כ ברשימה</div>
+                <div className="text-3xl font-black text-emerald-700">{closedDealLeads.length}</div>
+                <div className="text-[11px] text-emerald-600 mt-1.5 font-bold flex items-center gap-1">
+                  <Handshake className="w-3 h-3" />
+                  <span>חנויות שעבדנו איתן</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white border border-teal-200 shadow-xs relative overflow-hidden">
+                <div className="text-xs font-bold text-slate-500 mb-1">כבר דיברנו</div>
+                <div className="text-3xl font-black text-teal-600">
+                  {closedDealLeads.filter(l => l.dealStatus === 'כבר דיברנו').length}
+                </div>
+                <div className="text-[11px] text-teal-700 mt-1.5 font-bold">🗣️ ניהלנו שיחה</div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white border border-amber-200 shadow-xs relative overflow-hidden">
+                <div className="text-xs font-bold text-slate-500 mb-1">כבר לקוחות</div>
+                <div className="text-3xl font-black text-amber-600">
+                  {closedDealLeads.filter(l => l.dealStatus === 'כבר לקוח').length}
+                </div>
+                <div className="text-[11px] text-amber-700 mt-1.5 font-bold">👑 לקוחות פעילים</div>
+              </div>
+            </div>
+
+            {/* Empty State */}
+            {closedDealLeads.length === 0 && (
+              <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 p-8 shadow-xs max-w-lg mx-auto space-y-4">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
+                  <Handshake className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  אין עדיין חנויות ברשימת סגירות
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
+                  כדי להוסיף חנות לכאן, היכנס לטבלת החנויות ולחץ על "🗣️ דיברנו" או "👑 לקוח" בעמודת הסגירה.
+                  החנות תתווסף ישירות למודול זה.
+                </p>
+                <button
+                  onClick={() => setActiveModule('leads')}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-black text-xs rounded-xl shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-all"
+                >
+                  עבור עכשיו לטבלת החנויות
+                </button>
+              </div>
+            )}
+
+            {/* Closed Deal Leads Grid */}
+            {closedDealLeads.length > 0 && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {closedDealLeads.map((lead, idx) => {
+                  const statusConf = STATUS_CONFIG[lead.status] || STATUS_CONFIG['חדש'];
+                  const isJustUpdated = justUpdatedId === lead.id;
+                  const isClient = lead.dealStatus === 'כבר לקוח';
+
+                  return (
+                    <div 
+                      key={lead.id}
+                      className={`bg-white rounded-3xl border p-5 shadow-xs transition-all space-y-4 relative ${
+                        isJustUpdated ? 'border-emerald-400 bg-emerald-50/40 ring-2 ring-emerald-300' : 
+                        isClient ? 'border-amber-300/80 hover:border-amber-400' : 'border-teal-200/90 hover:border-teal-400'
+                      }`}
+                    >
+                      {/* Top Bar */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs text-emerald-600 font-black">#{idx + 1}</span>
+                            <h3 className="font-black text-slate-900 text-lg leading-snug">
+                              {lead.name}
+                            </h3>
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black shadow-2xs ${
+                              isClient 
+                                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white' 
+                                : 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white'
+                            }`}>
+                              {isClient ? '👑 כבר לקוח' : '🗣️ כבר דיברנו'}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
+                            <span className="font-bold text-slate-700">📍 {lead.area || 'לא צוין אזור'}</span>
+                            {lead.address && <span className="text-slate-400">{lead.address}</span>}
+                            {lead.contactPerson && (
+                              <span className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                                👤 {lead.contactPerson}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status & Return */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <select
+                            value={lead.status}
+                            onChange={(e) => handleStatusChange(lead.id, e.target.value)}
+                            className={`font-black text-xs px-2.5 py-1.5 rounded-xl border outline-none cursor-pointer ${statusConf.badge}`}
+                          >
+                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDocField(lead.id, 'dealStatus', lead.dealStatus || '')}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                            title="בטל סימון והחזר לטבלת החנויות"
+                          >
+                            <RotateCcw className="w-3 h-3 text-rose-600" />
+                            <span>הסר מרשימה ↩️</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick Actions: Call, WhatsApp, Google */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <a
+                          href={`tel:${cleanPhoneNumber(lead.phone)}`}
+                          className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs shadow-emerald-500/20 active:scale-95 transition-all"
+                        >
+                          <Phone className="w-4 h-4 fill-current" />
+                          <span dir="ltr">{lead.phone}</span>
+                        </a>
+
+                        <a
+                          href={`https://wa.me/972${cleanPhoneNumber(lead.phone).replace(/^0/, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                        >
+                          <MessageSquare className="w-4 h-4 text-emerald-600" />
+                          <span>וואטסאפ</span>
+                        </a>
+
+                        <a
+                          href={getGoogleSearchUrl(lead)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2.5 px-3 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                        >
+                          <Search className="w-4 h-4 text-cyan-600" />
+                          <span>גוגל</span>
+                        </a>
+                      </div>
+
+                      {/* Deal Status Toggle */}
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 space-y-2">
+                        <div className="text-[11px] font-bold text-slate-500 mb-1">שנה סטטוס עסקה:</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDocField(lead.id, 'dealStatus', 'כבר דיברנו')}
+                            className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center cursor-pointer ${
+                              lead.dealStatus === 'כבר דיברנו'
+                                ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                                : 'bg-white text-teal-800 border-teal-200 hover:bg-teal-50'
+                            }`}
+                          >
+                            🗣️ כבר דיברנו
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDocField(lead.id, 'dealStatus', 'כבר לקוח')}
+                            className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center cursor-pointer ${
+                              lead.dealStatus === 'כבר לקוח'
+                                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-amber-500 shadow-xs ring-2 ring-amber-300'
+                                : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50'
+                            }`}
+                          >
+                            👑 כבר לקוח
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Latest Note preview */}
+                      {lead.notes.length > 0 && (
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                          <div className="flex items-center justify-between text-[11px] text-slate-500">
+                            <span className="font-bold text-slate-700">תיעוד אחרון:</span>
+                            <span dir="ltr">
+                              {new Date(lead.notes[0].createdAt).toLocaleDateString('he-IL')} {new Date(lead.notes[0].createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-slate-800 font-medium leading-relaxed truncate">
+                            {lead.notes[0].text}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Card Bottom Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 flex-wrap gap-2">
+                        <button
+                          onClick={() => setActiveLeadForNote(lead)}
+                          className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer hover:scale-102 active:scale-95 transition-all"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>פתח תיעוד והיסטוריה ({lead.notes.length})</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearch(lead.name);
+                            setActiveModule('leads');
+                          }}
+                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                          title="עבור לטבלת החנויות הראשית ומצא חנות זו"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                          <span>פתח בטבלת החנויות</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* ========================================================= */}
         {/* MODULE 2: CALENDAR & SCHEDULED FOLLOW-UPS                 */}
         {/* ========================================================= */}
         {activeModule === 'calendar' && (
@@ -2191,6 +2488,21 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
             )}
           </button>
 
+          <button
+            onClick={() => setActiveModule('closedDeals')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl relative transition-all cursor-pointer ${
+              activeModule === 'closedDeals' ? 'text-emerald-600 font-black' : 'text-slate-500 font-medium'
+            }`}
+          >
+            <Handshake className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">סגירות</span>
+            {closedDealLeads.length > 0 && (
+              <span className="absolute top-0.5 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-600 text-white ring-2 ring-white">
+                {closedDealLeads.length}
+              </span>
+            )}
+          </button>
+
           {/* Center Floating + Add Store Button */}
           <button
             onClick={() => setShowAddModal(true)}
@@ -2199,7 +2511,7 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
             <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-cyan-500/35 border-2 border-white active:scale-95 group-hover:scale-105 transition-all">
               <Plus className="w-6 h-6 stroke-[3]" />
             </div>
-            <span className="text-[10px] font-black text-slate-800 mt-0.5">+ חנות</span>
+            <span className="text-[10px] font-black text-slate-800 mt-0.5">+ לקוח</span>
           </button>
 
           <button
@@ -2228,97 +2540,136 @@ export default function CrmDashboard({ initialLeads }: { initialLeads: Lead[] })
       </div>
 
       {/* ========================================================= */}
-      {/* MODAL: ADD NEW STORE LEAD                                 */}
+      {/* MODAL: ADD NEW STORE LEAD (MOBILE-OPTIMIZED)             */}
       {/* ========================================================= */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 relative animate-in fade-in zoom-in-95 duration-150">
-            <button 
-              onClick={() => setShowAddModal(false)}
-              className="absolute top-5 left-5 text-slate-400 hover:text-slate-700 p-1 rounded-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddModal(false);
+          }}
+        >
+          <div className="bg-white border-t sm:border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg shadow-2xl relative animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col max-h-[92vh] overflow-hidden">
+            {/* Mobile Drag Indicator */}
+            <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mt-2.5 sm:hidden shrink-0" />
 
-            <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-cyan-600" />
-              <span>הוספת חנות חדשה למאגר</span>
-            </h3>
-
-            <form onSubmit={handleCreateLead} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">שם החנות *</label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="למשל: סייקל פוינט תל אביב"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">טלפון *</label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="050-0000000 או 03-0000000"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
-                  dir="ltr"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">אזור / עיר</label>
-                  <input 
-                    type="text"
-                    placeholder="מרכז / צפון / שרון..."
-                    value={newArea}
-                    onChange={(e) => setNewArea(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
-                  />
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 sm:p-6 pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-cyan-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-cyan-500/20">
+                  <Plus className="w-5 h-5 stroke-[3]" />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">איש קשר</label>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">הוספת לקוח חדש</h3>
+                  <p className="text-xs text-slate-500 font-medium">הזנת פרטי חנות ליצירת ליד חדש במאגר</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 rounded-xl transition-all cursor-pointer"
+                aria-label="סגור"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleCreateLead} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+                <div>
+                  <label className="block font-black text-slate-700 mb-1.5 text-xs">
+                    שם החנות / העסק <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Store className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                    <input 
+                      type="text"
+                      required
+                      placeholder="למשל: סייקל פוינט תל אביב"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3 py-2.5 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-black text-slate-700 mb-1.5 text-xs">
+                    מספר טלפון <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                    <input 
+                      type="tel"
+                      inputMode="tel"
+                      required
+                      placeholder="050-0000000 או 03-0000000"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3 py-2.5 text-sm font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-black text-slate-700 mb-1.5 text-xs">אזור / עיר</label>
+                    <div className="relative">
+                      <MapPin className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                      <input 
+                        type="text"
+                        placeholder="מרכז / צפון / שרון / דרום..."
+                        value={newArea}
+                        onChange={(e) => setNewArea(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-black text-slate-700 mb-1.5 text-xs">איש קשר</label>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                      <input 
+                        type="text"
+                        placeholder="שם בעלים / מנהל"
+                        value={newContact}
+                        onChange={(e) => setNewContact(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-black text-slate-700 mb-1.5 text-xs">כתובת מלאה (אופציונלי)</label>
                   <input 
                     type="text"
-                    placeholder="שם בעלים / מנהל"
-                    value={newContact}
-                    onChange={(e) => setNewContact(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
+                    placeholder="רחוב ומספר בית..."
+                    value={newAddress}
+                    onChange={(e) => setNewAddress(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">כתובת</label>
-                <input 
-                  type="text"
-                  placeholder="רחוב ומספר בית"
-                  value={newAddress}
-                  onChange={(e) => setNewAddress(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
+              {/* Action Buttons Sticky Footer */}
+              <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
+                  className="px-4 py-2.5 text-slate-600 hover:bg-slate-200 font-bold rounded-xl active:scale-95 transition-all cursor-pointer text-xs"
                 >
                   ביטול
                 </button>
                 <button
                   type="submit"
                   disabled={!newName.trim() || !newPhone.trim() || isCreating}
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-black rounded-xl shadow-md shadow-cyan-500/20 disabled:opacity-50 cursor-pointer"
+                  className="flex-1 sm:flex-initial px-6 py-2.5 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md shadow-cyan-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
-                  הוסף חנות
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>{isCreating ? 'יוצר לקוח...' : 'הוסף לקוח עכשיו'}</span>
                 </button>
               </div>
             </form>

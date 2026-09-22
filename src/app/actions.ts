@@ -172,7 +172,7 @@ export async function createNewLead(data: {
 
 export async function updateDocumentationField(
   leadId: string, 
-  field: 'callAnswer' | 'interest' | 'worthInvesting' | 'callAgain', 
+  field: 'callAnswer' | 'interest' | 'worthInvesting' | 'callAgain' | 'dealStatus', 
   value: string | null
 ) {
   try {
@@ -206,6 +206,12 @@ export async function updateDocumentationField(
       if (value === 'ענה') {
         autoStatus = 'בטיפול';
       }
+    } else if (field === 'dealStatus') {
+      if (value === 'כבר לקוח') {
+        autoStatus = 'סגור';
+      } else if (value === 'כבר דיברנו') {
+        autoStatus = 'בטיפול';
+      }
     }
 
     if (autoStatus) updateData.status = autoStatus;
@@ -216,7 +222,8 @@ export async function updateDocumentationField(
       callAnswer: 'מענה',
       interest: 'רמת עניין',
       worthInvesting: 'כדאיות',
-      callAgain: 'התקשרות'
+      callAgain: 'התקשרות',
+      dealStatus: 'סטטוס עסקה'
     };
 
     const note = await prisma.note.create({

@@ -20,6 +20,7 @@ model Lead {
   interest        String?   // 'מעוניין' | 'לא מעוניין'
   worthInvesting  String?   // 'שווה להשקיע' | 'לא שווה'
   callAgain       String?   // 'להתקשר' | 'לא להתקשר'
+  dealStatus      String?   // 'כבר דיברנו' | 'כבר לקוח'
   temperature     String?   // 'cold' | 'warm' | 'hot' | 'urgent'
   followUpDate    DateTime?
   scheduledTime   String?   // HH:mm format, e.g. "14:30"
